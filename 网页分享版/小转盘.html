@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d18">
+<meta name="description" content="点一下就能转的幸运小转盘，内容和概率都能自己改，改完还能把链接分享给朋友。">
+<meta property="og:title" content="小转盘 · 转一下">
+<meta property="og:description" content="点一下就能转的幸运小转盘，内容和概率都能自己改。">
+<title>小转盘 · 转一下</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='%23ffd43b'/%3E%3Cpath d='M32 6a26 26 0 0 1 22.5 13L32 32z' fill='%23f76b6b'/%3E%3Cpath d='M54.5 45.5A26 26 0 0 1 32 58V32z' fill='%2338d9a9'/%3E%3Cpath d='M9.5 45.5A26 26 0 0 0 32 58V32z' fill='%234dabf7'/%3E%3Ccircle cx='32' cy='32' r='28' fill='none' stroke='%23c99428' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='7' fill='%231c2034'/%3E%3C/svg%3E">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  button,input{touch-action:manipulation}
+  :root{
+    --gold-l:#fff6d8; --gold-d:#b8861a; --accent:#ffd166;
+    --txt:#eef2ff; --dim:#98a2c8; --line:rgba(255,255,255,.13);
+    --card:rgba(255,255,255,.055);
+  }
+  html,body{height:100%;overflow-x:hidden}
+  body{
+    margin:0;color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(1100px 760px at 50% 12%, rgba(96,92,220,.34), transparent 62%),
+      radial-gradient(760px 620px at 88% 96%, rgba(122,110,255,.16), transparent 62%),
+      linear-gradient(180deg,#1b1f3a 0%,#12152a 46%,#080a12 100%);
+    background-attachment:fixed;
+    overscroll-behavior:none;
+    -webkit-text-size-adjust:100%;
+  }
+  .app{
+    display:flex;flex-direction:column;gap:10px;
+    padding:8px 10px calc(84px + env(safe-area-inset-bottom));
+    max-width:1320px;margin:0 auto;
+  }
+  .hero{position:relative;width:100%;flex:0 0 auto}
+  .hero canvas{display:block;width:100%;height:100%}
+  .titlebar{display:flex;align-items:baseline;gap:8px;padding:6px 4px 2px}
+  .titlebar b{font-size:17px;letter-spacing:.5px}
+  .titlebar span{font-size:12px;color:var(--dim)}
+
+  /* 结果卡片 */
+  .toast{
+    position:absolute;left:50%;top:27%;transform:translate(-50%,-50%) scale(.86);
+    min-width:180px;max-width:76%;padding:10px 22px 12px;text-align:center;
+    background:rgba(22,25,44,.92);border-radius:16px;
+    border:1.5px solid rgba(255,226,160,.85);
+    box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 30px rgba(255,196,90,.28);
+    opacity:0;pointer-events:none;transition:opacity .28s ease,transform .28s cubic-bezier(.2,1.4,.4,1);
+    z-index:12;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .toast .tlabel{display:block;font-size:11.5px;color:#ffd278;letter-spacing:1px;margin-bottom:2px}
+  .toast .tname{display:block;font-size:25px;font-weight:800;line-height:1.28;word-break:break-word}
+
+  /* 设置面板 */
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:14px 14px 12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    box-shadow:0 18px 44px rgba(0,0,0,.32);
+  }
+  .panel h1{margin:0 0 3px;font-size:18px;letter-spacing:.5px}
+  .panel .sub{margin:0 0 10px;font-size:12px;color:var(--dim);line-height:1.5}
+  .cols{display:grid;grid-template-columns:1fr 78px 66px 26px;gap:8px;padding:0 2px 6px;
+        font-size:11.5px;color:#8b95bb;align-items:center}
+  .cols span:nth-child(2){text-align:center}
+  .cols span:nth-child(3){text-align:right}
+  .list{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;-webkit-overflow-scrolling:touch;
+        scrollbar-width:thin}
+  .row{
+    position:relative;display:grid;grid-template-columns:1fr 78px 66px 26px;gap:8px;align-items:center;
+    padding:6px 8px;border-radius:12px;border:1px solid transparent;overflow:hidden;isolation:isolate;
+    min-height:48px;
+  }
+  .row.sel{border-color:rgba(255,255,255,.20);background:rgba(255,255,255,.05)}
+  .row .bar{position:absolute;inset:0;width:var(--pct,0%);z-index:-1;
+    background:linear-gradient(90deg,rgba(var(--rgb),.42),rgba(var(--rgb),.04));border-radius:12px;
+    transition:width .25s ease}
+  .row .chip{position:absolute;left:8px;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:5px;
+    background:rgb(var(--rgb));box-shadow:inset 0 2px 3px rgba(255,255,255,.55);z-index:1}
+  .row input{
+    width:100%;border:0;background:transparent;color:var(--txt);font:inherit;font-size:15px;
+    padding:8px 6px 8px 26px;border-radius:9px;outline:none;min-width:0;
+  }
+  .row input.w{
+    padding:8px 6px;text-align:center;background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.16);font-variant-numeric:tabular-nums;border-radius:9px;
+  }
+  .row input:focus{background:rgba(255,255,255,.16);box-shadow:0 0 0 2px rgba(255,209,102,.45)}
+  .row .pct{text-align:right;font-size:13.5px;color:var(--accent);font-variant-numeric:tabular-nums}
+  .row .del{
+    width:26px;height:26px;border-radius:8px;border:0;background:rgba(255,255,255,.10);color:#c8d0e6;
+    font-size:15px;line-height:1;cursor:pointer;padding:0
+  }
+  .row .del:active{background:rgba(255,92,92,.85);color:#fff}
+  .row .name:focus{background:rgba(255,255,255,.14)}
+
+  .btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+  .btns button{
+    padding:11px 6px;border-radius:12px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.08);color:#dbe2f8;font:inherit;font-size:13.5px;cursor:pointer
+  }
+  .btns button:active{background:rgba(255,255,255,.18)}
+  .foot{display:flex;justify-content:space-between;gap:10px;margin:12px 2px 0;font-size:11.5px;color:#7d87ab}
+  .foot .last{color:#d8ba78}
+
+  /* 底部操作条 */
+  .actionbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;
+    display:flex;gap:10px;align-items:center;
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(10,12,22,0),rgba(8,10,18,.92) 34%);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    max-width:1320px;margin:0 auto;
+  }
+  .actionbar button{font:inherit;cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.10);color:#e8edff;padding:13px 14px;font-size:14.5px;white-space:nowrap}
+  .actionbar button:active{background:rgba(255,255,255,.2)}
+  .actionbar .ic{width:52px;flex:0 0 auto;text-align:center;font-size:16px}
+  .actionbar .primary{
+    flex:1;border:0;color:#2a1c04;font-weight:800;font-size:16.5px;
+    background:linear-gradient(180deg,#ffe08a,#ffb340);
+    box-shadow:0 10px 26px rgba(255,170,60,.34), inset 0 1px 0 rgba(255,255,255,.7)
+  }
+  .actionbar .primary:active{filter:brightness(.94)}
+  .actionbar .primary:disabled{opacity:.55;box-shadow:none}
+  .ghost{flex:0 0 auto}
+
+  .fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+
+  @media (min-width:900px){
+    .app{flex-direction:row;align-items:flex-start;gap:22px;padding:18px 18px 96px}
+    .hero{flex:1 1 auto}
+    .panel{flex:0 0 420px;max-width:420px}
+    .list{max-height:52vh}
+    .titlebar b{font-size:19px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hero" id="hero">
+    <div class="titlebar"><b>小转盘</b><span>点一下转盘或按下面的按钮开始</span></div>
+    <canvas id="wheel"></canvas>
+    <div class="toast" id="toast"><span class="tlabel">★ 本次结果</span><span class="tname" id="tname"></span></div>
+  </div>
+
+  <div class="panel">
+    <h1>转盘设置</h1>
+    <p class="sub">点名称或权重就能改，权重越大被转到的概率越高，右侧概率会自动换算。</p>
+    <div class="cols"><span style="padding-left:26px">名称</span><span>权重</span><span>概率</span><span></span></div>
+    <div class="list" id="list"></div>
+    <div class="btns">
+      <button id="add">＋ 添加选项</button>
+      <button id="preset">随机示例</button>
+      <button id="reset">恢复默认</button>
+    </div>
+    <div class="foot"><span id="hint">改动自动保存在本机</span><span class="last" id="last"></span></div>
+  </div>
+</div>
+
+<div class="actionbar">
+  <button class="ic" id="sound" title="音效">♪</button>
+  <button class="ghost" id="share">分享链接</button>
+  <button class="primary" id="spin">开始旋转</button>
+</div>
+<canvas class="fx" id="fx"></canvas>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- 基础 ----------
+  var PALETTE = [[247,107,107],[77,171,247],[255,212,59],[81,207,102],[177,151,252],
+                 [255,169,77],[34,184,207],[247,131,172],[148,216,45],[116,143,252],
+                 [56,217,169],[229,153,247]];
+  function palColor(i){
+    var c = PALETTE[((i % 12) + 12) % 12].slice();
+    if (Math.floor(i / 12) % 2 === 1) { c = [c[0]*0.8|0, c[1]*0.8|0, c[2]*0.8|0]; }
+    return c;
+  }
+  function rgbStr(c, a){ return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a === undefined ? 1 : a) + ')'; }
+  function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+  function fmtPct(p){
+    if (p >= 10) return p.toFixed(1) + '%';
+    if (p >= 1) return p.toFixed(2) + '%';
+    return p.toFixed(3) + '%';
+  }
+  function fmtW(w){
+    return Math.abs(w - Math.round(w)) < 1e-6 ? String(Math.round(w)) : String(Math.round(w * 100) / 100);
+  }
+  var FONT = '"PingFang SC","Microsoft YaHei UI","Microsoft YaHei",-apple-system,sans-serif';
+  var TAU = Math.PI * 2, D2R = Math.PI / 180;
+
+  var PRESETS = [
+    { name:'今天吃什么', items:[['火锅',3],['烧烤',2],['日料',2],['麻辣烫',2],['汉堡',1],['饺子',1],['米线',1],['沙拉',1]] },
+    { name:'周末去哪儿', items:[['看电影',2],['爬山',1],['逛商场',2],['图书馆',1],['露营',2],['睡一整天',3],['咖啡探店',1],['骑行',1]] },
+    { name:'今天学什么', items:[['高数',3],['英语',2],['专业课',3],['刷题',2],['复习错题',2],['休息一下',1]] },
+    { name:'谁来买单',   items:[['我买单',1],['你买单',1],['他买单',1],['AA 制',1],['掷骰子',1],['下次再说',1]] },
+    { name:'真心话大冒险', items:[['真心话',1],['大冒险',1],['唱首歌',1],['表演才艺',1],['夸夸左边的人',1],['免罚一次',1]] }
+  ];
+
+  // ---------- 状态 ----------
+  var state = {
+    items: [],
+    rot: 0,
+    spinning: false,
+    rot0: 0, rotDelta: 0, spinT0: 0, spinDur: 4.4,
+    angSpeed: 0, pending: -1, winner: -1, resultAt: 0,
+    wob: 0, wobV: 0, lastTick: -1, lastTickT: 0,
+    sound: true, last: '', sel: 0
+  };
+  var parts = [];
+  var W = 0, H = 0, R = 0, cx = 0, cy = 0, dpr = 1;
+  var off = null, offDirty = true;
+
+  // ---------- DOM ----------
+  var hero = document.getElementById('hero');
+  var wheel = document.getElementById('wheel');
+  var fx = document.getElementById('fx');
+  var wctx = wheel.getContext('2d');
+  var fctx = fx.getContext('2d');
+  var listEl = document.getElementById('list');
+  var toastEl = document.getElementById('toast');
+  var tnameEl = document.getElementById('tname');
+  var lastEl = document.getElementById('last');
+  var hintEl = document.getElementById('hint');
+  var spinBtn = document.getElementById('spin');
+  var soundBtn = document.getElementById('sound');
+
+  // ---------- 数据读写 ----------
+  function sanitizeName(s){
+    s = String(s == null ? '' : s).replace(/[|:=]/g, '·').replace(/\s+/g, ' ').trim();
+    return s.slice(0, 24);
+  }
+  function totalW(){
+    var t = 0;
+    for (var i = 0; i < state.items.length; i++) t += Math.max(0, state.items[i].w);
+    return t;
+  }
+  function encodeShare(){
+    return state.items.map(function(it){ return sanitizeName(it.name) + ':' + fmtW(it.w); }).join('|');
+  }
+  function decodeShare(s){
+    var out = [];
+    String(s).split('|').forEach(function(seg){
+      if (!seg) return;
+      var k = seg.lastIndexOf(':');
+      var nm = k >= 0 ? seg.slice(0, k) : seg;
+      var wv = k >= 0 ? parseFloat(seg.slice(k + 1)) : 1;
+      nm = sanitizeName(nm);
+      if (!nm) return;
+      if (!isFinite(wv) || wv <= 0) wv = 1;
+      out.push({ name: nm, w: clamp(wv, 0.01, 100000) });
+    });
+    return out.slice(0, 60);
+  }
+  function save(){
+    try { localStorage.setItem('xiaozhuanpan', JSON.stringify(state.items)); } catch(e){}
+  }
+  function load(){
+    var hash = location.hash || '';
+    var m = hash.match(/[#&]w=([^&]+)/);
+    if (m) {
+      var dec = '';
+      try { dec = decodeURIComponent(m[1]); } catch(e){ dec = m[1]; }
+      var its = decodeShare(dec);
+      if (its.length) return its;
+    }
+    try {
+      var raw = localStorage.getItem('xiaozhuanpan');
+      if (raw) {
+        var arr = JSON.parse(raw);
+        if (arr && arr.length) {
+          return arr.map(function(o){ return { name: sanitizeName(o.name) || '选项', w: clamp(parseFloat(o.w) || 1, 0.01, 100000) }; }).slice(0, 60);
+        }
+      }
+    } catch(e){}
+    return PRESETS[0].items.map(function(p){ return { name: p[0], w: p[1] }; });
+  }
+
+  // ---------- 列表 UI ----------
+  function renderList(){
+    var t = totalW();
+    listEl.innerHTML = '';
+    state.items.forEach(function(it, i){
+      var c = palColor(i);
+      var pct = t > 0 ? Math.max(0, it.w) / t * 100 : 0;
+      var row = document.createElement('div');
+      row.className = 'row' + (i === state.sel ? ' sel' : '');
+      row.style.setProperty('--rgb', c.join(','));
+      row.style.setProperty('--pct', pct.toFixed(2) + '%');
+
+      var bar = document.createElement('i'); bar.className = 'bar'; row.appendChild(bar);
+      var chip = document.createElement('i'); chip.className = 'chip'; row.appendChild(chip);
+
+      var nm = document.createElement('input');
+      nm.className = 'name'; nm.type = 'text'; nm.value = it.name;
+      nm.maxLength = 24; nm.setAttribute('enterkeyhint', 'done'); nm.setAttribute('autocomplete', 'off');
+      nm.addEventListener('focus', function(){ state.sel = i; markSel(); });
+      nm.addEventListener('input', function(){
+        state.items[i].name = sanitizeName(nm.value);
+        offDirty = true; save(); scheduleWheel();
+      });
+      nm.addEventListener('blur', function(){ nm.value = state.items[i].name; });
+
+      var wI = document.createElement('input');
+      wI.className = 'w'; wI.type = 'number'; wI.min = '0.1'; wI.step = '0.5';
+      wI.value = fmtW(it.w); wI.setAttribute('inputmode', 'decimal'); wI.setAttribute('enterkeyhint', 'done');
+      wI.addEventListener('focus', function(){ state.sel = i; markSel(); });
+      wI.addEventListener('input', function(){
+        var v = parseFloat(wI.value);
+        if (isFinite(v) && v > 0) { state.items[i].w = clamp(v, 0.01, 100000); }
+        updatePct(); offDirty = true; save(); scheduleWheel();
+      });
+      wI.addEventListener('blur', function(){ wI.value = fmtW(state.items[i].w); });
+
+      var pc = document.createElement('span'); pc.className = 'pct'; pc.textContent = fmtPct(pct);
+      var del = document.createElement('button'); del.className = 'del'; del.type = 'button'; del.textContent = '×';
+      del.addEventListener('click', function(e){
+        e.preventDefault();
+        if (state.items.length <= 1) { flash('至少留一个选项'); return; }
+        state.items.splice(i, 1);
+        state.sel = Math.min(state.sel, state.items.length - 1);
+        offDirty = true; save(); renderList(); scheduleWheel();
+      });
+
+      row.appendChild(nm); row.appendChild(wI); row.appendChild(pc); row.appendChild(del);
+      listEl.appendChild(row);
+    });
+    updatePct();
+  }
+  function markSel(){
+    var rows = listEl.children;
+    for (var i = 0; i < rows.length; i++) rows[i].classList.toggle('sel', i === state.sel);
+  }
+  function updatePct(){
+    var t = totalW(), rows = listEl.children;
+    for (var i = 0; i < rows.length && i < state.items.length; i++) {
+      var pct = t > 0 ? Math.max(0, state.items[i].w) / t * 100 : 0;
+      rows[i].style.setProperty('--pct', pct.toFixed(2) + '%');
+      var pc = rows[i].querySelector('.pct');
+      if (pc) pc.textContent = fmtPct(pct);
+    }
+  }
+  function flash(msg){
+    hintEl.textContent = msg;
+    clearTimeout(flash.t);
+    flash.t = setTimeout(function(){ hintEl.textContent = '改动自动保存在本机'; }, 1800);
+  }
+  function scheduleWheel(){
+    clearTimeout(scheduleWheel.t);
+    scheduleWheel.t = setTimeout(function(){ buildWheel(); }, 140);
+  }
+
+  // ---------- 尺寸 ----------
+  var lastBoxW = -1, lastBoxH = -1;
+  function resize(){
+    var wide = window.innerWidth >= 900;
+    var heroW = hero.clientWidth || Math.min(window.innerWidth - 20, 560);
+    if (heroW < 40) return false;
+    var maxH = wide ? Math.min(window.innerHeight - 150, heroW) : Math.min(window.innerHeight * 0.58, heroW);
+    var wantH = Math.max(230, Math.round(maxH));
+    if (Math.abs(wantH - hero.clientHeight) > 1) hero.style.height = wantH + 'px';
+    var bw = hero.clientWidth, bh = hero.clientHeight;
+    if (bw === lastBoxW && bh === lastBoxH) return false;
+    lastBoxW = bw; lastBoxH = bh;
+    dpr = Math.min(window.devicePixelRatio || 1, 3);
+    W = bw; H = bh;
+    wheel.width = Math.round(bw * dpr); wheel.height = Math.round(bh * dpr);
+    wheel.style.width = bw + 'px'; wheel.style.height = bh + 'px';
+    fx.width = Math.round(window.innerWidth * dpr); fx.height = Math.round(window.innerHeight * dpr);
+    fx.style.width = window.innerWidth + 'px'; fx.style.height = window.innerHeight + 'px';
+    R = Math.min(W / 2.30, H / 1.52) * 0.99;
+    cx = W / 2;
+    cy = H - R * 1.15;
+    offDirty = true;
+    layoutReady = true;
+    return true;
+  }
+  var layoutReady = false;
+
+  // ---------- 盘面预渲染 ----------
+  function buildWheel(){
+    if (!layoutReady) return;
+    var n = state.items.length;
+    var t = totalW();
+    var SS = 2, Rout = R * 1.145;
+    var size = Math.max(32, Math.ceil(2 * Rout * SS));
+    off = document.createElement('canvas');
+    off.width = off.height = size;
+    var g = off.getContext('2d');
+    g.translate(size / 2, size / 2);
+    g.scale(SS, SS);
+    if (n === 0 || t <= 0) { offDirty = false; return; }
+
+    // 扇区起始角（顺时针，0 = 12 点方向）
+    var start = [], span = [], acc = 0;
+    for (var i = 0; i < n; i++) {
+      start[i] = 360 * acc / t;
+      acc += Math.max(0, state.items[i].w);
+      span[i] = 360 * acc / t - start[i];
+    }
+
+    // 外圈光晕
+    var glow = g.createRadialGradient(0, 0, R * 0.9, 0, 0, R * 1.13);
+    glow.addColorStop(0, 'rgba(255,196,92,.2)');
+    glow.addColorStop(1, 'rgba(255,180,60,0)');
+    g.fillStyle = glow;
+    g.beginPath(); g.arc(0, 0, R * 1.13, 0, TAU); g.fill();
+
+    // 扇区
+    for (i = 0; i < n; i++) {
+      var c = palColor(i);
+      var a0 = (start[i] - 90) * D2R, a1 = (start[i] + span[i] - 90) * D2R;
+      var midA = (start[i] + span[i] / 2 - 90) * D2R;
+      var grad = g.createLinearGradient(Math.cos(midA) * R * 0.05, Math.sin(midA) * R * 0.05,
+                                        Math.cos(midA) * R, Math.sin(midA) * R);
+      grad.addColorStop(0, rgbStr([c[0] * 0.8 + 255 * 0.2 | 0, c[1] * 0.8 + 255 * 0.2 | 0, c[2] * 0.8 + 255 * 0.2 | 0]));
+      grad.addColorStop(1, rgbStr([c[0] * 0.84 | 0, c[1] * 0.84 | 0, c[2] * 0.84 | 0]));
+      g.beginPath();
+      if (n === 1) { g.arc(0, 0, R, 0, TAU); }
+      else {
+        g.moveTo(0, 0);
+        g.arc(0, 0, R, a0, span[i] >= 359.99 ? a0 + TAU : a1);
+        g.closePath();
+      }
+      g.fillStyle = grad; g.fill();
+    }
+
+    // 立体感：中心高光 + 边缘暗角
+    g.save();
+    g.beginPath(); g.arc(0, 0, R * 0.985, 0, TAU); g.clip();
+    var hl = g.createRadialGradient(-R * 0.05, -R * 0.05, 0, -R * 0.05, -R * 0.05, R * 0.95);
+    hl.addColorStop(0, 'rgba(255,255,255,.17)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hl; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+    var vg = g.createRadialGradient(0, 0, R * 0.8, 0, 0, R);
+    vg.addColorStop(0, 'rgba(8,6,20,0)');
+    vg.addColorStop(1, 'rgba(8,6,20,.48)');
+    g.fillStyle = vg; g.beginPath(); g.arc(0, 0, R, 0, TAU); g.fill();
+    g.restore();
+
+    // 分割线
+    if (n > 1) {
+      g.strokeStyle = 'rgba(255,255,255,.58)';
+      g.lineWidth = R * 0.0065;
+      for (i = 0; i < n; i++) {
+        var aa = (start[i] - 90) * D2R;
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(aa) * R * 0.99, Math.sin(aa) * R * 0.99); g.stroke();
+      }
+    }
+
+    // 文字
+    for (i = 0; i < n; i++) {
+      if (span[i] < 1) continue;
+      var label = state.items[i].name || '选项';
+      var R0 = R * 0.935, avail = R0 - R * 0.24;
+      var base = clamp(R * 0.105, 11, 30), fs = base, tw = 0;
+      for (var k = 0; k < 10; k++) {
+        g.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
+        tw = g.measureText(label).width;
+        var innerR = Math.max(R * 0.22, R0 - tw);
+        var sliceW = TAU * innerR / n;
+        if (fs * 1.28 <= sliceW * 0.98 || fs <= 10) break;
+        fs *= 0.92;
+      }
+      g.font = '700 ' + fs.toFixed(1) + 'px ' + FONT;
+      tw = g.measureText(label).width;
+      var shown = label;
+      if (tw > avail) {
+        while (shown.length > 1 && g.measureText(shown + '…').width > avail) shown = shown.slice(0, -1);
+        shown = shown + '…';
+      }
+      var screenDeg = start[i] + span[i] / 2 - 90;
+      var flip = Math.cos(screenDeg * D2R) < 0;
+      g.save();
+      g.rotate((flip ? screenDeg + 180 : screenDeg) * D2R);
+      g.textBaseline = 'middle';
+      g.textAlign = flip ? 'left' : 'right';
+      g.shadowColor = 'rgba(255,255,255,.42)';
+      g.shadowOffsetX = 0.8; g.shadowOffsetY = 1.2; g.shadowBlur = 0;
+      g.fillStyle = 'rgba(24,26,44,.94)';
+      g.fillText(shown, flip ? -R0 : R0, 0);
+      g.restore();
+    }
+
+    // 金属外圈
+    var ro = R * 1.062, ri = R * 0.965;
+    var ring = g.createLinearGradient(-ro, -ro, ro, ro);
+    ring.addColorStop(0, '#fff9e2'); ring.addColorStop(0.5, '#c69428'); ring.addColorStop(1, '#ffecb0');
+    g.beginPath(); g.arc(0, 0, ro, 0, TAU); g.arc(0, 0, ri, 0, TAU, true);
+    g.fillStyle = ring; g.fill('evenodd');
+    g.strokeStyle = 'rgba(120,82,12,.85)'; g.lineWidth = R * 0.006;
+    g.beginPath(); g.arc(0, 0, ro, 0, TAU); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = R * 0.005;
+    g.beginPath(); g.arc(0, 0, ri, 0, TAU); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = R * 0.016; g.lineCap = 'round';
+    g.beginPath(); g.arc(0, 0, ro * 0.955, 190 * D2R, 310 * D2R); g.stroke();
+
+    // 灯泡
+    var bulbs = n <= 8 ? 24 : 32, br = R * 0.031, rr = R * 1.0135;
+    for (i = 0; i < bulbs; i++) {
+      var ba = (i * 360 / bulbs - 90) * D2R;
+      var bx = Math.cos(ba) * rr, by = Math.sin(ba) * rr;
+      var bright = i % 2 === 0;
+      var bg = g.createRadialGradient(bx, by, 0, bx, by, br * 3.2);
+      bg.addColorStop(0, bright ? 'rgba(255,244,200,.5)' : 'rgba(255,220,150,.2)');
+      bg.addColorStop(1, 'rgba(255,220,150,0)');
+      g.fillStyle = bg; g.beginPath(); g.arc(bx, by, br * 3.2, 0, TAU); g.fill();
+      g.fillStyle = bright ? '#fffcec' : '#c6962c';
+      g.beginPath(); g.arc(bx, by, br, 0, TAU); g.fill();
+      g.fillStyle = bright ? 'rgba(255,255,255,.86)' : 'rgba(255,255,255,.47)';
+      g.beginPath(); g.arc(bx - br * 0.25, by - br * 0.35, br * 0.45, 0, TAU); g.fill();
+    }
+
+    // 内沿阴影
+    g.strokeStyle = 'rgba(60,40,0,.24)'; g.lineWidth = R * 0.02;
+    g.beginPath(); g.arc(0, 0, R * 0.995, 0, TAU); g.stroke();
+
+    offDirty = false;
+  }
+
+  // ---------- 主循环 ----------
+  function drawWheel(){
+    var g = wctx;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    if (offDirty) buildWheel();
+    if (!off) return;
+
+    // 盘下阴影
+    var sh = g.createRadialGradient(cx, cy + R * 0.12, R * 0.2, cx, cy + R * 0.12, R * 1.06);
+    sh.addColorStop(0, 'rgba(0,0,0,.6)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sh;
+    g.beginPath(); g.ellipse(cx, cy + R * 0.12, R * 1.06, R, 0, 0, TAU); g.fill();
+
+    g.save();
+    g.translate(cx, cy);
+    g.rotate(state.rot * D2R);
+    g.drawImage(off, -R * 1.145, -R * 1.145, R * 2.29, R * 2.29);
+    g.restore();
+
+    // 中奖扇区高亮
+    if (state.winner >= 0 && state.winner < state.items.length && state.resultAt > 0) {
+      var s0 = spr(state.winner), pulse = 0.5 + 0.5 * Math.sin(now() / 170);
+      g.save();
+      g.translate(cx, cy); g.rotate(state.rot * D2R);
+      g.beginPath(); g.moveTo(0, 0);
+      g.arc(0, 0, R, (s0.start - 90) * D2R, (s0.start + s0.span - 90) * D2R);
+      g.closePath();
+      g.fillStyle = 'rgba(255,255,255,' + (0.12 + 0.12 * pulse).toFixed(3) + ')';
+      g.fill();
+      g.strokeStyle = 'rgba(255,252,220,' + (0.55 + 0.35 * pulse).toFixed(3) + ')';
+      g.lineWidth = R * 0.013; g.stroke();
+      g.restore();
+    }
+
+    // 玻璃反光
+    g.save();
+    g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.clip();
+    var gl = g.createRadialGradient(cx - R * 0.33, cy - R * 0.44, 0, cx - R * 0.33, cy - R * 0.44, R * 0.66);
+    gl.addColorStop(0, 'rgba(255,255,255,.13)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gl; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
+    var bs = g.createRadialGradient(cx, cy + R * 0.95, 0, cx, cy + R * 0.95, R * 0.95);
+    bs.addColorStop(0, 'rgba(0,0,0,.32)'); bs.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = bs; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
+    g.restore();
+
+    drawHub(g);
+    drawPointer(g);
+  }
+
+  function drawHub(g){
+    var hr = R * 0.175, ro = hr * 1.28;
+    var hg = g.createRadialGradient(cx, cy, 0, cx, cy, ro * 2.3);
+    hg.addColorStop(0, 'rgba(255,216,130,.28)'); hg.addColorStop(1, 'rgba(255,216,130,0)');
+    g.fillStyle = hg; g.beginPath(); g.arc(cx, cy, ro * 2.3, 0, TAU); g.fill();
+    var ring = g.createLinearGradient(cx - ro, cy - ro, cx + ro, cy + ro);
+    ring.addColorStop(0, '#fffae2'); ring.addColorStop(1, '#b8841e');
+    g.beginPath(); g.arc(cx, cy, ro, 0, TAU); g.arc(cx, cy, hr, 0, TAU, true);
+    g.fillStyle = ring; g.fill('evenodd');
+    var disc = g.createRadialGradient(cx - hr * 0.2, cy - hr * 0.25, 0, cx - hr * 0.2, cy - hr * 0.25, hr * 1.25);
+    disc.addColorStop(0, '#3a4266'); disc.addColorStop(0.55, '#161a2e'); disc.addColorStop(1, '#0a0c18');
+    g.beginPath(); g.arc(cx, cy, hr, 0, TAU); g.fillStyle = disc; g.fill();
+    g.strokeStyle = 'rgba(255,226,160,.5)'; g.lineWidth = hr * 0.045;
+    g.beginPath(); g.arc(cx, cy, hr, 0, TAU); g.stroke();
+    var w = hr * 0.40, h = hr * 0.46, ox = hr * 0.10;
+    var tg = g.createLinearGradient(cx, cy - h, cx, cy + h);
+    tg.addColorStop(0, '#fffce8'); tg.addColorStop(1, '#ffc754');
+    g.beginPath();
+    g.moveTo(cx - w * 0.42 + ox, cy - h);
+    g.lineTo(cx - w * 0.42 + ox, cy + h);
+    g.lineTo(cx + w * 1.15 + ox, cy);
+    g.closePath();
+    g.fillStyle = tg; g.fill();
+  }
+
+  function drawPointer(g){
+    var baseY = cy - R * 1.18, h = R * 0.285, w = R * 0.125;
+    var sg = g.createRadialGradient(cx, baseY + h * 0.45, 0, cx, baseY + h * 0.45, w * 1.5);
+    sg.addColorStop(0, 'rgba(0,0,0,.42)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sg;
+    g.beginPath(); g.ellipse(cx, baseY + h * 0.45, w * 1.5, h * 0.95, 0, 0, TAU); g.fill();
+    g.save();
+    g.translate(cx, baseY);
+    g.rotate(state.wob * D2R);
+    var lg = g.createLinearGradient(-w * 0.5, 0, w * 0.5, h);
+    lg.addColorStop(0, '#fff9e2'); lg.addColorStop(1, '#be8a22');
+    g.beginPath(); g.moveTo(-w * 0.5, 0); g.lineTo(w * 0.5, 0); g.lineTo(0, h); g.closePath();
+    g.fillStyle = lg; g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = Math.max(1, R * 0.005); g.stroke();
+    var bw = w * 0.72;
+    var bg = g.createLinearGradient(-bw, -bw * 0.6, bw, bw * 0.6);
+    bg.addColorStop(0, '#fffcec'); bg.addColorStop(1, '#d6a234');
+    g.beginPath(); g.ellipse(0, 0, bw, bw * 0.62, 0, 0, TAU); g.fillStyle = bg; g.fill();
+    g.restore();
+  }
+
+  function drawFx(){
+    var g = fctx;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, fx.width / dpr, fx.height / dpr);
+    if (!parts.length) return;
+    var rect = wheel.getBoundingClientRect();
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      var a = clamp(p.life / 0.65, 0, 1);
+      g.save();
+      g.translate(rect.left + p.x, rect.top + p.y);
+      g.rotate(p.rot);
+      g.fillStyle = rgbStr(p.c, 0.92 * a);
+      g.fillRect(-p.size / 2, -p.size * 0.34, p.size, p.size * 0.68);
+      g.restore();
+    }
+  }
+
+  // ---------- 动画 ----------
+  function now(){ return performance.now(); }
+  function spr(i){
+    var t = totalW(), acc = 0;
+    for (var k = 0; k < i; k++) acc += Math.max(0, state.items[k].w);
+    var start = t > 0 ? 360 * acc / t : 0;
+    var span = t > 0 ? 360 * Math.max(0, state.items[i].w) / t : 360;
+    return { start: start, span: span };
+  }
+  function indexAtLocal(deg){
+    var t = totalW(); if (t <= 0) return -1;
+    var acc = 0;
+    for (var i = 0; i < state.items.length; i++) {
+      acc += 360 * Math.max(0, state.items[i].w) / t;
+      if (deg < acc) return i;
+    }
+    return state.items.length - 1;
+  }
+  function spawnConfetti(count){
+    var cols = [[255,209,102],[255,107,107],[34,184,207],[177,151,252],[148,216,45],[255,255,255],[247,131,172]];
+    for (var i = 0; i < count; i++) {
+      var ang = Math.random() * TAU, spd = 130 + Math.random() * 520;
+      parts.push({
+        x: cx + Math.cos(ang) * R * 0.22,
+        y: cy + Math.sin(ang) * R * 0.22 - R * 0.10,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 360,
+        rot: Math.random() * TAU, vrot: (Math.random() - 0.5) * 13,
+        size: (4 + Math.random() * 7) * (R / 300),
+        life: 1.5 + Math.random() * 1.6, maxLife: 1.5 + Math.random() * 1.6,
+        c: cols[(Math.random() * cols.length) | 0]
+      });
+    }
+  }
+  function stepFx(dt){
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var p = parts[i];
+      p.vy += 1450 * dt;
+      var damp = Math.exp(-1.1 * dt);
+      p.vx *= damp; p.vy *= damp;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.rot += p.vrot * dt;
+      p.life -= dt;
+      if (p.life <= 0) parts.splice(i, 1);
+    }
+  }
+  function startSpin(){
+    if (state.spinning || !state.items.length) return;
+    var t = totalW(); if (t <= 0) return;
+    ensureAudio();
+    // 按权重抽取，再把落点对齐到该扇区内
+    var r = Math.random() * t, acc = 0, idx = state.items.length - 1;
+    for (var i = 0; i < state.items.length; i++) {
+      acc += Math.max(0, state.items[i].w);
+      if (r <= acc) { idx = i; break; }
+    }
+    var s = spr(idx);
+    var phi = s.start + s.span * (0.16 + 0.68 * Math.random());
+    var target = ((-phi) % 360 + 360) % 360;
+    var startMod = ((state.rot % 360) + 360) % 360;
+    var deltaMod = target - startMod;
+    if (deltaMod <= 0.5) deltaMod += 360;
+    state.rot0 = state.rot;
+    state.rotDelta = 360 * (5 + Math.floor(Math.random() * 3)) + deltaMod;
+    state.spinT0 = now();
+    state.spinDur = (4.1 + 0.9 * Math.random()) * 1000;
+    state.spinning = true;
+    state.pending = idx;
+    state.winner = -1;
+    state.resultAt = 0;
+    state.lastTick = -1;
+    parts.length = 0;
+    toastEl.classList.remove('show');
+    spinBtn.disabled = true;
+    spinBtn.textContent = '转动中…';
+  }
+  function stepSpin(){
+    var p = (now() - state.spinT0) / state.spinDur;
+    if (p >= 1) {
+      state.rot = state.rot0 + state.rotDelta;
+      state.spinning = false;
+      state.angSpeed = 0;
+      state.winner = state.pending;
+      state.resultAt = now();
+      spawnConfetti(window.innerWidth < 600 ? 120 : 170);
+      var nm = state.items[state.winner] ? state.items[state.winner].name : '';
+      state.last = nm;
+      lastEl.textContent = nm ? '上次结果：' + nm : '';
+      toastEl.classList.add('show');
+      tnameEl.textContent = nm;
+      spinBtn.disabled = false;
+      spinBtn.textContent = '再转一次';
+      clearTimeout(stepSpin.t);
+      stepSpin.t = setTimeout(function(){ toastEl.classList.remove('show'); }, 6000);
+      playWin();
+      return;
+    }
+    var q = 1 - p;
+    var ease = 1 - q * q * q * q;
+    state.rot = state.rot0 + state.rotDelta * ease;
+    state.angSpeed = state.rotDelta * 4 * q * q * q / state.spinDur * 1000;
+    var local = ((-state.rot % 360) + 360) % 360;
+    var at = indexAtLocal(local);
+    if (at !== state.lastTick) {
+      state.lastTick = at;
+      if (state.angSpeed > 20 && now() - state.lastTickT > 34) {
+        state.lastTickT = now();
+        playTick();
+      }
+    }
+  }
+  function stepWob(dt){
+    var target = 11 * clamp(state.angSpeed / 2600, 0, 1);
+    state.wobV += (target - state.wob) * 900 * dt;
+    state.wobV *= Math.exp(-8 * dt);
+    state.wob += state.wobV * dt;
+  }
+
+  var prev = now();
+  function loop(){
+    var t = now(), dt = Math.min(0.12, (t - prev) / 1000);
+    prev = t;
+    if (state.spinning) stepSpin();
+    stepWob(dt);
+    stepFx(dt);
+    drawWheel();
+    drawFx();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- 声音 ----------
+  var actx = null;
+  function ensureAudio(){
+    if (!state.sound) return;
+    if (!actx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) { try { actx = new AC(); } catch(e){ actx = null; } }
+    }
+    if (actx && actx.state === 'suspended') actx.resume();
+  }
+  function beep(freq, dur, vol, type, delay){
+    if (!state.sound || !actx) return;
+    var t0 = actx.currentTime + (delay || 0);
+    var o = actx.createOscillator(), g2 = actx.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g2); g2.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function playTick(){ beep(1500, 0.045, 0.055, 'triangle'); beep(2600, 0.03, 0.02, 'square'); }
+  function playWin(){
+    [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i){ beep(f, 0.20, 0.06, 'sine', i * 0.11); });
+  }
+
+  // ---------- 分享 ----------
+  function shareUrl(){
+    var base = location.href.split('#')[0];
+    return base + '#w=' + encodeURIComponent(encodeShare());
+  }
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(res, rej){
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select(); ta.setSelectionRange(0, ta.value.length);
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? res() : rej();
+      } catch(e){ rej(e); }
+    });
+  }
+  function doShare(){
+    if (location.protocol === 'file:') {
+      flash('本地文件没有可分享网址，先托管到网上');
+      return;
+    }
+    var url = shareUrl();
+    copyText(url).then(function(){
+      flash('链接已复制，去微信粘贴给好友吧');
+    }).catch(function(){
+      window.prompt('复制下面的链接发给好友：', url);
+    });
+  }
+
+  // ---------- 事件绑定 ----------
+  spinBtn.addEventListener('click', startSpin);
+  wheel.addEventListener('click', startSpin);
+  soundBtn.addEventListener('click', function(){
+    state.sound = !state.sound;
+    soundBtn.style.opacity = state.sound ? '1' : '.5';
+    soundBtn.textContent = state.sound ? '♪' : '♪̸';
+    if (state.sound) ensureAudio();
+  });
+  document.getElementById('share').addEventListener('click', doShare);
+  document.getElementById('add').addEventListener('click', function(){
+    if (state.items.length >= 60) { flash('最多 60 个选项'); return; }
+    state.items.push({ name: '新选项', w: 1 });
+    state.sel = state.items.length - 1;
+    offDirty = true; save(); renderList(); scheduleWheel();
+    var rows = listEl.children;
+    var input = rows[rows.length - 1] && rows[rows.length - 1].querySelector('.name');
+    if (input) { input.focus(); input.select(); }
+  });
+  document.getElementById('preset').addEventListener('click', function(){
+    var p = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+    state.items = p.items.map(function(x){ return { name: x[0], w: x[1] }; });
+    state.sel = 0;
+    offDirty = true; save(); renderList(); scheduleWheel();
+    flash('已换成「' + p.name + '」');
+  });
+  document.getElementById('reset').addEventListener('click', function(){
+    state.items = PRESETS[0].items.map(function(x){ return { name: x[0], w: x[1] }; });
+    state.sel = 0;
+    offDirty = true; save(); renderList(); scheduleWheel();
+    flash('已恢复默认内容');
+  });
+  window.addEventListener('resize', function(){ if (resize()) scheduleWheel(); });
+  window.addEventListener('orientationchange', function(){ setTimeout(function(){ if (resize()) scheduleWheel(); }, 260); });
+  document.addEventListener('visibilitychange', function(){ prev = now(); });
+  if (window.ResizeObserver) {
+    try {
+      new ResizeObserver(function(){ if (resize()) scheduleWheel(); }).observe(hero);
+    } catch(e){}
+  }
+
+  // ---------- 启动 ----------
+  state.items = load();
+  state.sel = 0;
+  resize();
+  renderList();
+  buildWheel();
+  requestAnimationFrame(loop);
+  // 某些浏览器（含微信内置）首帧的尺寸会晚一步确定
+  setTimeout(function(){ if (resize()) { scheduleWheel(); buildWheel(); } }, 60);
+  setTimeout(function(){ if (resize()) { scheduleWheel(); buildWheel(); } }, 400);
+  window.addEventListener('load', function(){ if (resize()) { scheduleWheel(); buildWheel(); } });
+})();
+</script>
+</body>
+</html>
